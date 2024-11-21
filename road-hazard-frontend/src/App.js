@@ -1,7 +1,5 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import MainLayout from './components/layout/MainLayout';
-
-// Import your pages
 import Dashboard from './pages/Dashboard';
 import Users from './pages/Users';
 import Reports from './pages/Reports';
@@ -12,16 +10,18 @@ import Login from './pages/Login';
 function App() {
   return (
     <Router>
-      <MainLayout>
-        <Routes>
-          <Route path="/" element={<Dashboard />} />
-          <Route path="/map" element={<MapView />} />
-          <Route path="/users" element={<Users />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/reports" element={<Reports />} />
-          <Route path="/settings" element={<Settings />} />
-        </Routes>
-      </MainLayout>
+      <Routes>
+        {/* Login route outside MainLayout */}
+        <Route path="/login" element={<Login />} />
+        
+        
+        <Route path="/" element={<MainLayout><Dashboard /></MainLayout>} />
+        <Route path="/dashboard" element={<MainLayout><Dashboard /></MainLayout>} />
+        <Route path="/map" element={<MainLayout><MapView /></MainLayout>} />
+        <Route path="/users" element={<MainLayout><Users /></MainLayout>} />
+        <Route path="/reports" element={<MainLayout><Reports /></MainLayout>} />
+        <Route path="/settings" element={<MainLayout><Settings /></MainLayout>} />
+      </Routes>
     </Router>
   );
 }
