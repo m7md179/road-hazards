@@ -14,7 +14,7 @@ function App() {
         {/* Login route outside MainLayout */}
         <Route path="/login" element={<Login />} />
         
-        {/* Routes that should have the MainLayout */}
+        
         <Route path="/" element={<MainLayout><Dashboard /></MainLayout>} />
         <Route path="/dashboard" element={<MainLayout><Dashboard /></MainLayout>} />
         <Route path="/map" element={<MainLayout><MapView /></MainLayout>} />
