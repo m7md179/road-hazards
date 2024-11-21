@@ -1,4 +1,4 @@
-import { supabase } from '../config/supabase.js'
+import { supabase } from '../config/supabase.config.js'
 
 export const authController = {
   async signUp(req, res) {
