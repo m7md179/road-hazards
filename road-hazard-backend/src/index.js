@@ -5,6 +5,8 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import hazardTypesRoutes from './routes/hazardTypes.routes.js';
 import locationsRoutes from './routes/locations.routes.js';
+import authRoutes from './routes/auth.routes.js';
+import reportsRoutes from './routes/reports.routes.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -26,6 +28,8 @@ app.get('/api/test', (req, res) => {
 // Routes
 app.use('/api/hazard-types', hazardTypesRoutes);
 app.use('/api/locations', locationsRoutes);
+app.use('/api/auth', authRoutes);
+app.use('/api/reports', reportsRoutes);
 
 // Start server
 app.listen(PORT, () => {
