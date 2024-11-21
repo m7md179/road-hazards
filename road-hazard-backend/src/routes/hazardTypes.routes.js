@@ -1,12 +1,12 @@
-import { Router } from 'express'
-import { hazardTypesController } from '../controllers/hazardTypes.controller.js'
-import { authenticateUser } from '../middleware/auth.middleware.js'
+import { Router } from 'express';
+import { hazardTypesController } from '../controllers/hazardTypes.controller.js';
 
-const router = Router()
+const router = Router();
 
-router.get('/', hazardTypesController.getAllTypes)
-router.post('/', authenticateUser, hazardTypesController.createType)
-router.put('/:id', authenticateUser, hazardTypesController.updateType)
-router.delete('/:id', authenticateUser, hazardTypesController.deleteType)
+router.get('/', hazardTypesController.getAll);
+router.post('/', hazardTypesController.create);
+router.get('/:id', hazardTypesController.getById);
+router.put('/:id', hazardTypesController.update);
+router.delete('/:id', hazardTypesController.delete);
 
-export default router
+export default router;
