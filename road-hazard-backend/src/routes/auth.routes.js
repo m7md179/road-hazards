@@ -1,12 +1,11 @@
-import { Router } from 'express'
-import { authController } from '../controllers/auth.controller.js'
-import { validatePhone } from '../middleware/validation.middleware.js'
+import { Router } from 'express';
+import authController from '../controllers/auth.controller.js';
 
-const router = Router()
+const router = Router();
 
-router.post('/signup', validatePhone, authController.signUp)
-router.post('/verify', authController.verifyOTP)
-router.post('/login', validatePhone, authController.signIn)
-router.post('/signout', authController.signOut)
+router.post('/signup', authController.signUp);
+router.post('/signin', authController.signIn);
+router.get('/profile', authController.getProfile);
+router.put('/profile', authController.updateProfile);
 
-export default router
+export default router;

@@ -1,41 +1,33 @@
-// src/middleware/auth.middleware.js
-import { supabase } from '../config/supabase.js'
+import { supabase } from '../config/supabase.config.js';
 
-export const authenticateUser = async (req, res, next) => {
-  try {
-    // Get the auth header
-    const authHeader = req.headers.authorization
-    
-    if (!authHeader) {
-      return res.status(401).json({ message: 'No token provided' })
+export const authMiddleware = async (req, res, next) => {
+    try {
+        const token = req.headers.authorization?.split(' ')[1];
+        
+        if (!token) {
+            return res.status(401).json({ message: 'No auth token provided' });
+        }
+
+        // Set the token in the client
+        supabase.auth.setSession(token);
+        
+        // Get user session
+        const { data: { user }, error } = await supabase.auth.getUser();
+
+        if (error || !user) {
+            return res.status(401).json({ message: 'Invalid or expired token' });
+        }
+
+        // Get user from our users table
+        const { data: userData } = await supabase
+            .from('users')
+            .select('*')
+            .eq('email', user.email)
+            .single();
+
+        req.user = userData;
+        next();
+    } catch (error) {
+        res.status(401).json({ message: 'Authentication failed' });
     }
-
-    // Get the current session
-    const { data: { session }, error } = await supabase.auth.getSession()
-
-    if (error || !session) {
-      return res.status(401).json({ message: 'Invalid session' })
-    }
-
-    // Get user profile
-    const { data: profile, error: profileError } = await supabase
-      .from('users')
-      .select('*')
-      .eq('id', session.user.id)
-      .single()
-
-    if (profileError || !profile) {
-      return res.status(401).json({ message: 'User profile not found' })
-    }
-
-    if (profile.is_banned) {
-      return res.status(403).json({ message: 'Account is banned' })
-    }
-
-    // Attach user profile to request
-    req.user = profile
-    next()
-  } catch (error) {
-    res.status(401).json({ message: 'Authentication failed' })
-  }
-}
+};
