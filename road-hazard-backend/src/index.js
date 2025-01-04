@@ -1,37 +1,20 @@
-import express from 'express';
-import cors from 'cors';
-import dotenv from 'dotenv';
-import path from 'path';
-import { fileURLToPath } from 'url';
-import hazardTypesRoutes from './routes/hazardTypes.routes.js';
-import locationsRoutes from './routes/locations.routes.js';
-import authRoutes from './routes/auth.routes.js';
-import reportsRoutes from './routes/reports.routes.js';
+// routes/index.js
+import { Router } from 'express';
+import authRoutes from './auth.routes.js';
+import reportsRoutes from './reports.routes.js';
+import usersRoutes from './users.routes.js';
+import dashboardRoutes from './dashboard.routes.js';
+import { adminAuthMiddleware } from '../middleware/admin.middleware.js';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const router = Router();
 
-dotenv.config({ path: path.resolve(__dirname, '../.env.local') });
+// Public routes
+router.use('/auth', authRoutes);
 
-const app = express();
-const PORT = process.env.PORT || 3000;
+// Protected admin routes
+router.use(adminAuthMiddleware);  // All routes below require admin auth
+router.use('/reports', reportsRoutes);
+router.use('/users', usersRoutes);
+router.use('/dashboard', dashboardRoutes);
 
-// Middleware
-app.use(cors());
-app.use(express.json());
-
-// Test route
-app.get('/api/test', (req, res) => {
-    res.json({ message: 'Server is running!' });
-});
-
-// Routes
-app.use('/api/hazard-types', hazardTypesRoutes);
-app.use('/api/locations', locationsRoutes);
-app.use('/api/auth', authRoutes);
-app.use('/api/reports', reportsRoutes);
-
-// Start server
-app.listen(PORT, () => {
-    console.log(`Server running on http://localhost:${PORT}`);
-});
+export default router;
