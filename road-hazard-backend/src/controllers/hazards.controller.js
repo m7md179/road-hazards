@@ -1,4 +1,6 @@
 // controllers/hazards.controller.js
+import { supabase } from '../config/supabase.config.js';
+
 export const hazardTypesController = {
     // Admin Methods
     async getAll(req, res) {

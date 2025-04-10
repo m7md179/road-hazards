@@ -1,5 +1,18 @@
 // middleware/admin.middleware.js
+import { supabase } from '../config/supabase.config.js';
+
 export const adminAuthMiddleware = async (req, res, next) => {
+  // For development - check if we're using mock data
+  if (process.env.NODE_ENV !== 'production' && !process.env.SUPABASE_URL?.startsWith('http')) {
+    console.log('🔑 Development mode: Bypassing admin authentication');
+    req.user = { 
+      id: 'mock-admin-id', 
+      email: 'admin@example.com', 
+      name: 'Admin User' 
+    };
+    return next();
+  }
+
   try {
       const token = req.headers.authorization?.split(' ')[1];
       

@@ -1,8 +1,12 @@
 // controllers/users.controller.js
+import { supabase } from '../config/supabase.config.js';
+
 export const usersController = {
     // Admin Methods
     async getAll(req, res) {
         try {
+            console.log('Fetching users from Supabase...');
+            
             const { 
                 trusted_score_min,
                 trusted_score_max,
@@ -12,6 +16,20 @@ export const usersController = {
                 limit = 20
             } = req.query;
 
+            // First, check if the 'users' table exists
+            console.log('Checking if users table exists...');
+            const { data: tableInfo, error: tableError } = await supabase
+                .from('users')
+                .select('count(*)', { count: 'exact', head: true });
+                
+            if (tableError) {
+                console.error('Error checking users table:', tableError);
+                throw tableError;
+            }
+            
+            console.log('Users table exists, count result:', tableInfo);
+
+            // Continue with regular query
             let query = supabase
                 .from('users')
                 .select('*')
@@ -30,10 +48,16 @@ export const usersController = {
             const to = from + limit - 1;
             query = query.range(from, to);
 
+            console.log('Executing users query...');
             const { data, error, count } = await query;
 
-            if (error) throw error;
+            if (error) {
+                console.error('Error fetching users:', error);
+                throw error;
+            }
 
+            console.log(`Found ${data?.length || 0} users`);
+            
             res.json({
                 users: data,
                 pagination: {
@@ -43,29 +67,139 @@ export const usersController = {
                 }
             });
         } catch (error) {
+            console.error('Error in getAll users:', error);
             res.status(500).json({ error: error.message });
         }
     },
 
-    async updateUser(req, res) {
+    async getById(req, res) {
         try {
-            const { userId } = req.params;
-            const { is_banned, trusted_score, admin_note } = req.body;
+            const { id } = req.params;
+            const { data, error } = await supabase
+                .from('users')
+                .select('*')
+                .eq('id', id)
+                .single();
+
+            if (error) throw error;
+            
+            res.json(data);
+        } catch (error) {
+            res.status(500).json({ error: error.message });
+        }
+    },
+
+    async update(req, res) {
+        try {
+            const { id } = req.params;
+            const { name, email, phone, is_admin, is_banned, trusted_score, admin_note } = req.body;
 
             const { data, error } = await supabase
                 .from('users')
                 .update({ 
+                    name,
+                    email,
+                    phone,
+                    is_admin,
                     is_banned,
                     trusted_score,
                     admin_note,
                     updated_at: new Date().toISOString()
                 })
-                .eq('id', userId)
+                .eq('id', id)
                 .select()
                 .single();
 
             if (error) throw error;
 
+            res.json(data);
+        } catch (error) {
+            res.status(500).json({ error: error.message });
+        }
+    },
+    
+    async delete(req, res) {
+        try {
+            const { id } = req.params;
+            const { error } = await supabase
+                .from('users')
+                .delete()
+                .eq('id', id);
+
+            if (error) throw error;
+            
+            res.json({ message: 'User deleted successfully' });
+        } catch (error) {
+            res.status(500).json({ error: error.message });
+        }
+    },
+
+    async updateTrustScore(req, res) {
+        try {
+            const { id } = req.params;
+            const { trusted_score, admin_note } = req.body;
+            
+            const { data, error } = await supabase
+                .from('users')
+                .update({ 
+                    trusted_score,
+                    admin_note,
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', id)
+                .select()
+                .single();
+                
+            if (error) throw error;
+            
+            res.json(data);
+        } catch (error) {
+            res.status(500).json({ error: error.message });
+        }
+    },
+    
+    async banUser(req, res) {
+        try {
+            const { id } = req.params;
+            const { admin_note } = req.body;
+            
+            const { data, error } = await supabase
+                .from('users')
+                .update({ 
+                    is_banned: true,
+                    admin_note,
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', id)
+                .select()
+                .single();
+                
+            if (error) throw error;
+            
+            res.json(data);
+        } catch (error) {
+            res.status(500).json({ error: error.message });
+        }
+    },
+    
+    async unbanUser(req, res) {
+        try {
+            const { id } = req.params;
+            const { admin_note } = req.body;
+            
+            const { data, error } = await supabase
+                .from('users')
+                .update({ 
+                    is_banned: false,
+                    admin_note,
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', id)
+                .select()
+                .single();
+                
+            if (error) throw error;
+            
             res.json(data);
         } catch (error) {
             res.status(500).json({ error: error.message });

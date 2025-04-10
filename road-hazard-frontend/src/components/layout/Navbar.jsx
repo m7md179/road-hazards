@@ -1,8 +1,17 @@
-import { Menu, Bell, Search, LogIn } from 'lucide-react';
+import { Menu, Bell, Search, LogOut, User } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
+import { useState } from 'react';
 
 const Navbar = ({ onMenuClick }) => {
   const navigate = useNavigate();
+  const { user, logout } = useAuth();
+  const [showDropdown, setShowDropdown] = useState(false);
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
 
   return (
     <nav className="bg-white border-b border-gray-200">
@@ -41,14 +50,39 @@ const Navbar = ({ onMenuClick }) => {
               <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-red-500"></span>
             </button>
 
-            {/* Login Button */}
-            <button
-              onClick={() => navigate('/login')}
-              className="flex items-center gap-2 px-4 py-2 text-primary-600 hover:bg-primary-50 rounded-lg"
-            >
-              <LogIn className="h-5 w-5" />
-              <span className="hidden md:block">Login</span>
-            </button>
+            {/* User Profile */}
+            <div className="relative">
+              <button
+                onClick={() => setShowDropdown(!showDropdown)}
+                className="flex items-center gap-2 px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg"
+              >
+                <div className="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center">
+                  <User className="h-5 w-5 text-primary-600" />
+                </div>
+                <span className="hidden md:block font-medium">{user?.name || 'Admin'}</span>
+              </button>
+
+              {showDropdown && (
+                <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-10 border border-gray-200">
+                  <div className="px-4 py-2 text-sm text-gray-700 border-b">
+                    <p className="font-medium">{user?.name || 'Admin'}</p>
+                    <p className="text-gray-500">{user?.email || 'admin@example.com'}</p>
+                  </div>
+                  <a
+                    href="/settings"
+                    className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                  >
+                    Settings
+                  </a>
+                  <button
+                    onClick={handleLogout}
+                    className="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-100"
+                  >
+                    Sign out
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
