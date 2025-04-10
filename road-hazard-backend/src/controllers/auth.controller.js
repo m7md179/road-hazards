@@ -1,5 +1,7 @@
 // controllers/auth.controller.js
-export const authController = {
+import { supabase } from '../config/supabase.config.js';
+
+const authController = {
     // Admin Methods
     async login(req, res) {
         try {
@@ -22,7 +24,7 @@ export const authController = {
                 throw new Error('Not authorized as admin');
             }
 
-            res.json({ 
+            res.json({
                 user,
                 session: data.session
             });
@@ -58,7 +60,7 @@ export const authController = {
     async mobileRegister(req, res) {
         try {
             const { email, password, name, phone } = req.body;
-            
+
             // Create auth user
             const { data: authData, error: authError } = await supabase.auth.signUp({
                 email,
@@ -135,3 +137,5 @@ export const authController = {
         }
     }
 };
+
+export default authController;

@@ -1,20 +1,123 @@
-// routes/index.js
-import { Router } from 'express';
-import authRoutes from './auth.routes.js';
-import reportsRoutes from './reports.routes.js';
-import usersRoutes from './users.routes.js';
-import dashboardRoutes from './dashboard.routes.js';
-import { adminAuthMiddleware } from '../middleware/admin.middleware.js';
+// Main application entry point
+import express from 'express';
+import cors from 'cors';
+import helmet from 'helmet';
+import fileUpload from 'express-fileupload';
+import 'dotenv/config';
 
-const router = Router();
+// Import routes
+import authRoutes from './routes/auth.routes.js';
+import reportsRoutes from './routes/reports.routes.js';
+import usersRoutes from './routes/users.routes.js';
+import dashboardRoutes from './routes/dashboard.routes.js';
+import hazardsRoutes from './routes/hazards.routes.js';
 
-// Public routes
-router.use('/auth', authRoutes);
+// Import middleware
+import { adminAuthMiddleware } from './middleware/admin.middleware.js';
 
-// Protected admin routes
-router.use(adminAuthMiddleware);  // All routes below require admin auth
-router.use('/reports', reportsRoutes);
-router.use('/users', usersRoutes);
-router.use('/dashboard', dashboardRoutes);
+const app = express();
+const PORT = process.env.PORT || 3001;
 
-export default router;
+// Middleware
+app.use(cors());
+app.use(helmet());
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(fileUpload({
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB max file size
+  createParentPath: true
+}));
+
+// API routes
+app.use('/api/auth', authRoutes);
+
+// Admin routes - protected by authentication
+app.use('/api/dashboard', adminAuthMiddleware, dashboardRoutes);
+app.use('/api/reports', adminAuthMiddleware, reportsRoutes);
+app.use('/api/users', adminAuthMiddleware, usersRoutes);
+app.use('/api/hazards', adminAuthMiddleware, hazardsRoutes);
+
+// Health check endpoints
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// Supabase diagnostic endpoint
+app.get('/api/supabase-test', async (req, res) => {
+  try {
+    console.log('Testing Supabase connection...');
+    const { data, error } = await supabase.from('users').select('count(*)', { count: 'exact', head: true });
+    
+    if (error) {
+      console.error('Supabase test error:', error);
+      return res.status(500).json({
+        status: 'error',
+        message: 'Failed to connect to Supabase',
+        error: error.message,
+        details: error
+      });
+    }
+    
+    // Check if we're using the mock client
+    const isMockClient = typeof supabase.from('test_table').select === 'function' && 
+                        typeof supabase.from('test_table').select('*').eq === 'function' &&
+                        typeof supabase.from('test_table').select('*').eq().single === 'function' &&
+                        !supabase.from('test_table').select('*').eq().single.native;
+    
+    res.status(200).json({
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+      supabase: {
+        connected: true,
+        url: process.env.SUPABASE_URL ? `${process.env.SUPABASE_URL.substring(0, 20)}...` : 'Not set',
+        usingMockClient: isMockClient,
+        testQueryResult: data
+      }
+    });
+  } catch (error) {
+    console.error('Supabase test error:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to test Supabase connection',
+      error: error.message
+    });
+  }
+});
+
+app.get('/api/mock-data', (req, res) => {
+  const mockData = {
+    dashboard: {
+      stats: {
+        totalReports: 156,
+        totalHazards: 83,
+        totalUsers: 327,
+        pendingReports: 12
+      }
+    },
+    reports: [
+      { id: 1, type: 'Pothole', status: 'pending', reported_at: new Date().toISOString() },
+      { id: 2, type: 'Roadwork', status: 'approved', reported_at: new Date().toISOString() }
+    ],
+    hazards: [
+      { id: 1, type: 'Pothole', severity: 'high', latitude: 51.505, longitude: -0.09 },
+      { id: 2, type: 'Roadwork', severity: 'medium', latitude: 51.51, longitude: -0.1 }
+    ]
+  };
+  res.status(200).json(mockData);
+});
+
+// Root path
+app.get('/', (req, res) => {
+  res.json({
+    message: 'Road Hazard API',
+    version: '1.0.0',
+    docs: '/api-docs'
+  });
+});
+
+// Start the server
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
+
+export default app;

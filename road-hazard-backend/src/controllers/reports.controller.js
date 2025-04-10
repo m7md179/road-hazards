@@ -1,4 +1,6 @@
 // controllers/reports.controller.js
+import { supabase } from '../config/supabase.config.js';
+
 export const reportsController = {
     // Admin Methods
     async getAll(req, res) {
