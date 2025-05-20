@@ -1,39 +1,27 @@
-import { useState, useEffect } from 'react';
-import PageHeader from '../components/layout/PageHeader';
-import Card from '../components/ui/Card';
-import Table from '../components/ui/Table';
+import { useState, useEffect } from "react";
+import PageHeader from "../components/layout/PageHeader";
+import Card from "../components/ui/Card";
+import Table from "../components/ui/Table";
+import { supabase } from "../lib/supabaseClient"; // import supabase client
 
 const Users = () => {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState('all');
+  const [filter, setFilter] = useState("all");
 
   useEffect(() => {
     const fetchUsers = async () => {
       try {
         setLoading(true);
-        const response = await fetch('/api/users');
-        
-        if (!response.ok) {
-          throw new Error('Failed to fetch users');
-        }
-        
-        const data = await response.json();
-        
-        if (!data || !data.users || data.users.length === 0) {
-          // Mock data if no actual data
-          setUsers([
-            { id: 1, name: 'John Doe', email: 'john@example.com', trusted_score: 85, is_admin: true, is_banned: false },
-            { id: 2, name: 'Jane Smith', email: 'jane@example.com', trusted_score: 92, is_admin: false, is_banned: false },
-            { id: 3, name: 'Mike Johnson', email: 'mike@example.com', trusted_score: 45, is_admin: false, is_banned: true },
-            { id: 4, name: 'Sarah Wilson', email: 'sarah@example.com', trusted_score: 78, is_admin: false, is_banned: false },
-            { id: 5, name: 'David Brown', email: 'david@example.com', trusted_score: 23, is_admin: false, is_banned: false },
-          ]);
-        } else {
-          setUsers(data.users);
-        }
+        const { data, error } = await supabase
+          .from("users")
+          .select("id, name, email, trusted_score, is_admin, is_banned");
+
+        if (error) throw error;
+
+        setUsers(data || []);
       } catch (error) {
-        console.error('Error fetching users:', error);
+        console.error("Error fetching users:", error.message);
       } finally {
         setLoading(false);
       }
@@ -42,80 +30,83 @@ const Users = () => {
     fetchUsers();
   }, []);
 
-  const filteredUsers = filter === 'all' 
-    ? users 
-    : filter === 'banned' 
-      ? users.filter(user => user.is_banned)
-      : filter === 'admins'
-        ? users.filter(user => user.is_admin)
-        : filter === 'low_trust'
-          ? users.filter(user => user.trusted_score < 50)
-          : users;
+  const filteredUsers =
+    filter === "all"
+      ? users
+      : filter === "banned"
+      ? users.filter((user) => user.is_banned)
+      : filter === "admins"
+      ? users.filter((user) => user.is_admin)
+      : filter === "low_trust"
+      ? users.filter((user) => user.trusted_score < 50)
+      : users;
 
   const columns = [
-    { Header: 'ID', accessor: 'id' },
-    { 
-      Header: 'Name', 
-      accessor: 'name',
-      Cell: ({ value }) => <span className="font-medium">{value}</span>
+    { Header: "ID", accessor: "id" },
+    {
+      Header: "Name",
+      accessor: "name",
+      Cell: ({ value }) => <span className="font-medium">{value}</span>,
     },
-    { 
-      Header: 'Email', 
-      accessor: 'email' 
-    },
-    { 
-      Header: 'Trust Score', 
-      accessor: 'trusted_score',
+    { Header: "Email", accessor: "email" },
+    {
+      Header: "Trust Score",
+      accessor: "trusted_score",
       Cell: ({ value }) => {
-        let colorClass = 'bg-red-100 text-red-800';
-        if (value >= 70) colorClass = 'bg-green-100 text-green-800';
-        else if (value >= 40) colorClass = 'bg-yellow-100 text-yellow-800';
-        
+        let colorClass = "bg-red-100 text-red-800";
+        if (value >= 70) colorClass = "bg-green-100 text-green-800";
+        else if (value >= 40) colorClass = "bg-yellow-100 text-yellow-800";
         return (
-          <span className={`px-2 py-1 rounded-full text-xs font-medium ${colorClass}`}>
+          <span
+            className={`px-2 py-1 rounded-full text-xs font-medium ${colorClass}`}
+          >
             {value}
           </span>
         );
-      }
+      },
     },
-    { 
-      Header: 'Role', 
-      accessor: 'is_admin',
+    {
+      Header: "Role",
+      accessor: "is_admin",
       Cell: ({ value }) => (
         <span className="px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-          {value ? 'Admin' : 'User'}
+          {value ? "Admin" : "User"}
         </span>
-      )
+      ),
     },
-    { 
-      Header: 'Status', 
-      accessor: 'is_banned',
+    {
+      Header: "Status",
+      accessor: "is_banned",
       Cell: ({ value }) => (
-        <span className={`px-2 py-1 rounded-full text-xs font-medium ${value ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}`}>
-          {value ? 'Banned' : 'Active'}
+        <span
+          className={`px-2 py-1 rounded-full text-xs font-medium ${
+            value ? "bg-red-100 text-red-800" : "bg-green-100 text-green-800"
+          }`}
+        >
+          {value ? "Banned" : "Active"}
         </span>
-      )
+      ),
     },
-    { 
-      Header: 'Actions', 
-      accessor: 'id',
+    {
+      Header: "Actions",
+      accessor: "id",
       Cell: ({ row }) => (
         <div className="flex space-x-2">
-          <button 
+          <button
             className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
             onClick={() => alert(`View details for user ${row.original.id}`)}
           >
             View
           </button>
           {row.original.is_banned ? (
-            <button 
+            <button
               className="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700"
               onClick={() => alert(`Unban user ${row.original.id}`)}
             >
               Unban
             </button>
           ) : (
-            <button 
+            <button
               className="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700"
               onClick={() => alert(`Ban user ${row.original.id}`)}
             >
@@ -123,8 +114,8 @@ const Users = () => {
             </button>
           )}
         </div>
-      )
-    }
+      ),
+    },
   ];
 
   return (
@@ -134,7 +125,7 @@ const Users = () => {
         description="Manage registered users and their trust scores"
         actions={
           <div className="flex space-x-2">
-            <select 
+            <select
               className="px-4 py-2 border rounded-lg"
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
@@ -163,11 +154,8 @@ const Users = () => {
               Showing {filteredUsers.length} of {users.length} users
             </span>
           </div>
-          
-          <Table
-            columns={columns}
-            data={filteredUsers}
-          />
+
+          <Table columns={columns} data={filteredUsers} />
         </Card>
       )}
     </>

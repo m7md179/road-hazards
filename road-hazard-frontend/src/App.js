@@ -1,43 +1,62 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { useEffect, useState } from 'react';
-import MainLayout from './components/layout/MainLayout';
-import Dashboard from './pages/Dashboard';
-import Users from './pages/Users';
-import Reports from './pages/Reports';
-import Settings from './pages/Settings';
-import MapView from './pages/MapView';
-import Login from './pages/Login';
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  Navigate,
+} from "react-router-dom";
+import MainLayout from "./components/layout/MainLayout";
+import Dashboard from "./pages/Dashboard";
+import Users from "./pages/Users";
+import Reports from "./pages/Reports";
+import Settings from "./pages/Settings";
+import MapView from "./pages/MapView";
+import Login from "./pages/Login";
+import Hazards from "./pages/Hazards";
+import { AuthProvider, useAuth } from "./context/AuthContext";
 
-// Mock auth context - in a real app, this would be a proper context
-import { AuthProvider } from './context/AuthContext';
+// Create a separate component for protected routes
+function ProtectedRoutes() {
+  const { loggedIn } = useAuth();
 
-function App() {
-  // Auto-login in development mode
-  const [loggedIn, setLoggedIn] = useState(true);
-  const [user] = useState({
-    id: 'mock-admin-id',
-    name: 'Admin User',
-    email: 'admin@example.com',
-    is_admin: true
-  });
+  if (!loggedIn) {
+    return <Navigate to="/login" />;
+  }
 
   return (
-    <AuthProvider value={{ user, loggedIn, setLoggedIn }}>
+    <MainLayout>
+      <Routes>
+        <Route path="/" element={<Navigate to="/dashboard" />} />
+        <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/map" element={<MapView />} />
+        <Route path="/hazards" element={<Hazards />} />
+        <Route path="/reports" element={<Reports />} />
+        <Route path="/users" element={<Users />} />
+        <Route path="/settings" element={<Settings />} />
+      </Routes>
+    </MainLayout>
+  );
+}
+
+// Public routes component
+function PublicRoute({ children }) {
+  const { loggedIn } = useAuth();
+  return loggedIn ? <Navigate to="/dashboard" /> : children;
+}
+
+function App() {
+  return (
+    <AuthProvider>
       <Router>
         <Routes>
-          {/* Login route outside MainLayout */}
-          <Route 
-            path="/login" 
-            element={loggedIn ? <Navigate to="/dashboard" /> : <Login />} 
+          <Route
+            path="/login"
+            element={
+              <PublicRoute>
+                <Login />
+              </PublicRoute>
+            }
           />
-          
-          {/* Protected routes */}
-          <Route path="/" element={<MainLayout><Dashboard /></MainLayout>} />
-          <Route path="/dashboard" element={<MainLayout><Dashboard /></MainLayout>} />
-          <Route path="/map" element={<MainLayout><MapView /></MainLayout>} />
-          <Route path="/users" element={<MainLayout><Users /></MainLayout>} />
-          <Route path="/reports" element={<MainLayout><Reports /></MainLayout>} />
-          <Route path="/settings" element={<MainLayout><Settings /></MainLayout>} />
+          <Route path="/*" element={<ProtectedRoutes />} />
         </Routes>
       </Router>
     </AuthProvider>
