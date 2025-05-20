@@ -1,155 +1,401 @@
-import { useState, useEffect } from 'react';
-import PageHeader from '../components/layout/PageHeader';
-import Card from '../components/ui/Card';
-import Table from '../components/ui/Table';
+import { useState, useEffect } from "react";
+import PageHeader from "../components/layout/PageHeader";
+import Card from "../components/ui/Card";
+import Table from "../components/ui/Table";
+import { supabase } from "../lib/supabaseClient";
 
 const Reports = () => {
   const [reports, setReports] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [currentFilter, setCurrentFilter] = useState('all');
+  const [currentFilter, setCurrentFilter] = useState("all");
+  const [hazardTypes, setHazardTypes] = useState({});
+  const [users, setUsers] = useState({});
+
+  // Fetch hazard types and create a lookup object
+  const fetchHazardTypes = async () => {
+    try {
+      const { data, error } = await supabase.from("hazard_types").select("*");
+
+      if (error) throw error;
+
+      // Create a lookup object with hazard_type_id as keys
+      const hazardTypesMap = {};
+      data.forEach((type) => {
+        hazardTypesMap[type.hazard_type_id] = type.name;
+      });
+
+      setHazardTypes(hazardTypesMap);
+    } catch (error) {
+      console.error("Error fetching hazard types:", error);
+    }
+  };
+
+  // Fetch users for reporter information
+  const fetchUsers = async () => {
+    try {
+      const { data, error } = await supabase.from("users").select("id,name");
+
+      if (error) throw error;
+
+      // Create a lookup object with user id as keys
+      const usersMap = {};
+      data.forEach((user) => {
+        usersMap[user.id] = user.name;
+      });
+
+      setUsers(usersMap);
+    } catch (error) {
+      console.error("Error fetching users:", error);
+    }
+  };
+
+  // Fetch reports with related location data
+  const fetchReports = async () => {
+    try {
+      setLoading(true);
+
+      const { data, error } = await supabase
+        .from("reports")
+        .select(
+          `
+          report_id,
+          user_id,
+          hazard_type_id,
+          description,
+          status,
+          report_timestamp,
+          similar_reports_count,
+          locations (
+            latitude,
+            longitude,
+            address
+          )
+        `
+        )
+        .order("report_timestamp", { ascending: false });
+
+      if (error) throw error;
+
+      if (data) {
+        const transformedData = data.map((report) => {
+          const location = report.locations
+            ? `${report.locations.latitude}, ${report.locations.longitude}`
+            : "Unknown";
+
+          return {
+            id: report.report_id,
+            type: hazardTypes[report.hazard_type_id] || "Unknown",
+            hazard_type_id: report.hazard_type_id,
+            location: location,
+            location_address: report.locations?.address || "No address",
+            reported_by: users[report.user_id] || "Unknown User",
+            user_id: report.user_id,
+            status: report.status || "pending",
+            reported_at: report.report_timestamp,
+            description: report.description || "No description",
+            similar_reports: report.similar_reports_count || 0,
+          };
+        });
+
+        setReports(transformedData);
+      }
+    } catch (error) {
+      console.error("Error fetching reports:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchReports = async () => {
-      try {
-        setLoading(true);
-        const response = await fetch('/api/reports');
-        
-        if (!response.ok) {
-          throw new Error('Failed to fetch reports');
-        }
-        
-        const data = await response.json();
-        
-        if (!data || data.length === 0) {
-          // Mock data if no actual data
-          setReports([
-            { id: 1, type: 'Pothole', location: '51.505, -0.09', reported_by: 'John Doe', status: 'pending', reported_at: '2025-04-01T10:30:00Z', description: 'Large pothole in the middle of the road', severity: 'high' },
-            { id: 2, type: 'Roadwork', location: '51.507, -0.11', reported_by: 'Jane Smith', status: 'converted', reported_at: '2025-04-02T14:22:00Z', description: 'Ongoing road construction, poorly marked', severity: 'medium' },
-            { id: 3, type: 'Accident', location: '51.503, -0.10', reported_by: 'Mike Johnson', status: 'rejected', reported_at: '2025-04-03T08:15:00Z', description: 'Car collision, road partially blocked', severity: 'high' },
-            { id: 4, type: 'Flooding', location: '51.509, -0.08', reported_by: 'Sarah Williams', status: 'pending', reported_at: '2025-04-05T17:45:00Z', description: 'Road flooded after heavy rain', severity: 'medium' },
-            { id: 5, type: 'Other', location: '51.501, -0.095', reported_by: 'David Brown', status: 'converted', reported_at: '2025-04-07T11:10:00Z', description: 'Fallen tree blocking one lane', severity: 'medium' },
-          ]);
-        } else {
-          setReports(data);
-        }
-      } catch (error) {
-        console.error('Error fetching reports:', error);
-      } finally {
-        setLoading(false);
-      }
+    // Fetch reference data first
+    const loadData = async () => {
+      await fetchHazardTypes();
+      await fetchUsers();
+      await fetchReports();
     };
 
-    fetchReports();
+    loadData();
+
+    // Set up a subscription to reports changes
+    const reportsSubscription = supabase
+      .channel("reports-changes")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "reports" },
+        () => {
+          fetchReports();
+        }
+      )
+      .subscribe();
+
+    // Clean up subscription
+    return () => {
+      supabase.removeChannel(reportsSubscription);
+    };
   }, []);
 
   const handleApproveReport = async (id) => {
     try {
-      // In a real app, you would call an API
-      // const response = await fetch(`/api/reports/${id}/approve`, { method: 'POST' });
-      // if (!response.ok) throw new Error('Failed to approve report');
-      
-      // Update local state for immediate UI update
-      setReports(prevReports => 
-        prevReports.map(report => 
-          report.id === id ? { ...report, status: 'converted' } : report
+      const { error } = await supabase
+        .from("reports")
+        .update({ status: "converted" })
+        .eq("report_id", id);
+
+      if (error) throw error;
+
+      // Also add to the hazards table
+      const reportToConvert = reports.find((report) => report.id === id);
+      if (reportToConvert) {
+        const { error: hazardError } = await supabase.from("hazards").insert({
+          hazard_type_id: reportToConvert.hazard_type_id,
+          location_id: reportToConvert.location_id,
+          description: reportToConvert.description,
+          created_from_report_id: id,
+          status: "active",
+        });
+
+        if (hazardError) throw hazardError;
+      }
+
+      // Optimistic update
+      setReports((prevReports) =>
+        prevReports.map((report) =>
+          report.id === id ? { ...report, status: "converted" } : report
         )
       );
     } catch (error) {
-      console.error('Error approving report:', error);
+      console.error("Error approving report:", error);
     }
   };
 
   const handleRejectReport = async (id) => {
     try {
-      // In a real app, you would call an API
-      // const response = await fetch(`/api/reports/${id}/reject`, { method: 'POST' });
-      // if (!response.ok) throw new Error('Failed to reject report');
-      
-      // Update local state for immediate UI update
-      setReports(prevReports => 
-        prevReports.map(report => 
-          report.id === id ? { ...report, status: 'rejected' } : report
+      const { error } = await supabase
+        .from("reports")
+        .update({ status: "rejected" })
+        .eq("report_id", id);
+
+      if (error) throw error;
+
+      // Optimistic update
+      setReports((prevReports) =>
+        prevReports.map((report) =>
+          report.id === id ? { ...report, status: "rejected" } : report
         )
       );
     } catch (error) {
-      console.error('Error rejecting report:', error);
+      console.error("Error rejecting report:", error);
     }
   };
 
-  const filteredReports = currentFilter === 'all' 
-    ? reports 
-    : reports.filter(report => report.status === currentFilter);
+  const handleUpdateReportState = async (id, newState) => {
+    try {
+      const { error } = await supabase
+        .from("reports")
+        .update({ status: newState })
+        .eq("report_id", id);
+
+      if (error) throw error;
+
+      // Optimistic update
+      setReports((prevReports) =>
+        prevReports.map((report) =>
+          report.id === id ? { ...report, status: newState } : report
+        )
+      );
+    } catch (error) {
+      console.error("Error updating report state:", error);
+    }
+  };
+
+  const handleUpdateHazardType = async (id, newHazardTypeId) => {
+    try {
+      const { error } = await supabase
+        .from("reports")
+        .update({ hazard_type_id: newHazardTypeId })
+        .eq("report_id", id);
+
+      if (error) throw error;
+
+      // Optimistic update
+      setReports((prevReports) =>
+        prevReports.map((report) =>
+          report.id === id
+            ? {
+                ...report,
+                hazard_type_id: newHazardTypeId,
+                type: hazardTypes[newHazardTypeId],
+              }
+            : report
+        )
+      );
+    } catch (error) {
+      console.error("Error updating hazard type:", error);
+    }
+  };
+
+  const filteredReports =
+    currentFilter === "all"
+      ? reports
+      : reports.filter((report) => report.status === currentFilter);
 
   const formatDate = (dateString) => {
+    if (!dateString) return "Unknown";
     const date = new Date(dateString);
-    return date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+    return date.toLocaleDateString() + " " + date.toLocaleTimeString();
   };
 
   const getStatusBadgeClass = (status) => {
-    switch(status) {
-      case 'pending': return 'bg-yellow-100 text-yellow-800';
-      case 'converted': return 'bg-green-100 text-green-800';
-      case 'rejected': return 'bg-red-100 text-red-800';
-      default: return 'bg-gray-100 text-gray-800';
+    switch (status) {
+      case "pending":
+        return "bg-yellow-100 text-yellow-800";
+      case "converted":
+        return "bg-green-100 text-green-800";
+      case "rejected":
+        return "bg-red-100 text-red-800";
+      case "processing":
+        return "bg-blue-100 text-blue-800";
+      case "investigating":
+        return "bg-purple-100 text-purple-800";
+      default:
+        return "bg-gray-100 text-gray-800";
     }
   };
 
-  const columns = [
-    { Header: 'ID', accessor: 'id' },
-    { 
-      Header: 'Type', 
-      accessor: 'type',
-      Cell: ({ value }) => <span className="font-medium">{value}</span>
-    },
-    { 
-      Header: 'Status', 
-      accessor: 'status',
-      Cell: ({ value }) => (
-        <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusBadgeClass(value)}`}>
-          {value.charAt(0).toUpperCase() + value.slice(1)}
-        </span>
+  const handleExportCSV = () => {
+    const headers = [
+      "ID",
+      "Type",
+      "Location",
+      "Address",
+      "Reported By",
+      "Status",
+      "Reported At",
+      "Description",
+      "Similar Reports",
+    ];
+
+    const rows = filteredReports.map((report) => [
+      report.id,
+      report.type,
+      report.location,
+      report.location_address,
+      report.reported_by,
+      report.status,
+      formatDate(report.reported_at),
+      report.description,
+      report.similar_reports,
+    ]);
+
+    const csvContent = [headers, ...rows]
+      .map((row) =>
+        row.map((field) => `"${String(field).replace(/"/g, '""')}"`).join(",")
       )
-    },
-    { 
-      Header: 'Reported By', 
-      accessor: 'reported_by'
-    },
-    { 
-      Header: 'Reported At', 
-      accessor: 'reported_at',
-      Cell: ({ value }) => formatDate(value)
-    },
-    { 
-      Header: 'Actions', 
-      accessor: 'id',
+      .join("\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", "hazard_reports.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const columns = [
+    { Header: "ID", accessor: "id" },
+    {
+      Header: "Type",
+      accessor: "type",
       Cell: ({ row }) => (
-        <div className="flex space-x-2">
-          {row.original.status === 'pending' && (
-            <>
-              <button 
+        <select
+          className="px-2 py-1 border rounded"
+          value={row.original.hazard_type_id}
+          onChange={(e) =>
+            handleUpdateHazardType(row.original.id, e.target.value)
+          }
+        >
+          {Object.entries(hazardTypes).map(([id, name]) => (
+            <option key={id} value={id}>
+              {name}
+            </option>
+          ))}
+        </select>
+      ),
+    },
+    {
+      Header: "Status",
+      accessor: "status",
+      Cell: ({ row }) => (
+        <div className="flex flex-col space-y-2">
+          <span
+            className={`px-2 py-1 rounded-full text-xs font-medium text-center ${getStatusBadgeClass(
+              row.original.status
+            )}`}
+          >
+            {row.original.status.charAt(0).toUpperCase() +
+              row.original.status.slice(1)}
+          </span>
+          {row.original.status === "pending" && (
+            <div className="flex space-x-1">
+              <button
                 onClick={() => handleApproveReport(row.original.id)}
-                className="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700"
+                className="px-2 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700"
               >
                 Approve
               </button>
-              <button 
+              <button
                 onClick={() => handleRejectReport(row.original.id)}
-                className="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700"
+                className="px-2 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700"
               >
                 Reject
               </button>
-            </>
+            </div>
           )}
-          <button 
-            className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
-            onClick={() => alert(`View details for report ${row.original.id}`)}
+          <select
+            className="px-2 py-1 text-xs border rounded"
+            value={row.original.status}
+            onChange={(e) =>
+              handleUpdateReportState(row.original.id, e.target.value)
+            }
           >
-            View
-          </button>
+            <option value="pending">Pending</option>
+            <option value="converted">Approved</option>
+            <option value="rejected">Rejected</option>
+            <option value="processing">Processing</option>
+            <option value="investigating">Investigating</option>
+          </select>
         </div>
-      )
-    }
-  ];
+      ),
+    },
+    { Header: "Reported By", accessor: "reported_by" },
+    {
+      Header: "Location",
+      accessor: "location_address",
+      Cell: ({ row }) => (
+        <div className="text-sm">
+          <div>{row.original.location_address}</div>
+          <div className="text-gray-500">{row.original.location}</div>
+        </div>
+      ),
+    },
+    {
+      Header: "Reported At",
+      accessor: "reported_at",
+      Cell: ({ value }) => formatDate(value),
+    },
+    {
+      Header: "Similar Reports",
+      accessor: "similar_reports",
+      Cell: ({ value }) => (
+        <span className={value > 0 ? "font-medium text-blue-600" : ""}>
+          {value}
+        </span>
+      ),
+    },
+  ].filter(Boolean); // This ensures no undefined columns
 
   return (
     <>
@@ -158,7 +404,7 @@ const Reports = () => {
         description="Manage and review user-submitted hazard reports"
         actions={
           <div className="flex space-x-2">
-            <select 
+            <select
               className="px-4 py-2 border rounded-lg"
               value={currentFilter}
               onChange={(e) => setCurrentFilter(e.target.value)}
@@ -167,8 +413,13 @@ const Reports = () => {
               <option value="pending">Pending</option>
               <option value="converted">Approved</option>
               <option value="rejected">Rejected</option>
+              <option value="processing">Processing</option>
+              <option value="investigating">Investigating</option>
             </select>
-            <button className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700">
+            <button
+              className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+              onClick={handleExportCSV}
+            >
               Export CSV
             </button>
           </div>
@@ -187,11 +438,15 @@ const Reports = () => {
               Showing {filteredReports.length} of {reports.length} reports
             </span>
           </div>
-          
-          <Table
-            columns={columns}
-            data={filteredReports}
-          />
+
+          {reports.length > 0 ? (
+            <Table columns={columns} data={filteredReports} />
+          ) : (
+            <div className="text-center py-8 text-gray-500">
+              No reports found.{" "}
+              {currentFilter !== "all" && "Try changing your filter."}
+            </div>
+          )}
         </Card>
       )}
     </>
